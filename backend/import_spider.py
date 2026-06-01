@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Use raw strings (r"...") to avoid escape sequence warnings
 SPIDER_DATABASES = {
     "college_2": r"D:\spider\database\college_2\college_2.sqlite",
     "car_1":     r"D:\spider\database\car_1\car_1.sqlite",
@@ -31,11 +30,9 @@ def sqlite_type_to_postgres(sqlite_type: str) -> str:
     return type_map.get(base, "TEXT")
 
 def import_table(db_name: str, table: str, cursor, pg_engine):
-    """Each table gets its own connection — so one failure never kills others"""
     try:
         with pg_engine.connect() as pg_conn:
 
-            # Get column info
             cursor.execute(f"PRAGMA table_info({table})")
             columns = cursor.fetchall()
 
@@ -43,10 +40,10 @@ def import_table(db_name: str, table: str, cursor, pg_engine):
                 print(f"     skipping {table} — no columns found")
                 return
 
-            # Build column definitions
+            # ✅ FIX: lowercase all column names
             col_defs = []
             for col in columns:
-                col_name = col[1]
+                col_name = col[1].lower()      # lowercase here
                 col_type = sqlite_type_to_postgres(col[2])
                 pk       = col[5]
                 notnull  = col[3]
@@ -57,21 +54,24 @@ def import_table(db_name: str, table: str, cursor, pg_engine):
                     null_str = "NOT NULL" if notnull else ""
                     col_defs.append(f'"{col_name}" {col_type} {null_str}')
 
-            # Drop and recreate table
-            pg_conn.execute(text(f'DROP TABLE IF EXISTS {db_name}."{table}" CASCADE'))
+            # Drop and recreate table with lowercase columns
+            pg_conn.execute(text(
+                f'DROP TABLE IF EXISTS {db_name}."{table}" CASCADE'
+            ))
             pg_conn.execute(text(
                 f'CREATE TABLE {db_name}."{table}" ({", ".join(col_defs)})'
             ))
 
             # Insert rows
-            cursor.execute(f"SELECT * FROM \"{table}\"")
+            cursor.execute(f'SELECT * FROM "{table}"')
             rows = cursor.fetchall()
 
             inserted = 0
             for row in rows:
                 try:
                     row_dict     = {str(i): val for i, val in enumerate(row)}
-                    col_names    = ", ".join([f'"{col[1]}"' for col in columns])
+                    # ✅ FIX: use lowercase column names in INSERT too
+                    col_names    = ", ".join([f'"{col[1].lower()}"' for col in columns])
                     placeholders = ", ".join([f":{i}" for i in range(len(columns))])
                     pg_conn.execute(text(
                         f'INSERT INTO {db_name}."{table}" ({col_names}) '
@@ -79,7 +79,7 @@ def import_table(db_name: str, table: str, cursor, pg_engine):
                     ), row_dict)
                     inserted += 1
                 except Exception:
-                    pass  # skip bad rows silently
+                    pass
 
             pg_conn.commit()
             print(f"     ✅ {table} — {inserted} rows")
@@ -93,16 +93,14 @@ def import_database(db_name: str, sqlite_path: str):
     sqlite_conn = sqlite3.connect(sqlite_path)
     cursor      = sqlite_conn.cursor()
 
-    # Get all tables
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tables = [row[0] for row in cursor.fetchall()]
 
-    # Create schema once
+    # Create schema
     with pg_engine.connect() as pg_conn:
         pg_conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS {db_name}'))
         pg_conn.commit()
 
-    # Import each table independently
     for table in tables:
         print(f"  → {table}")
         import_table(db_name, table, cursor, pg_engine)
@@ -117,4 +115,4 @@ if __name__ == "__main__":
         else:
             print(f"❌ Not found: {sqlite_path}")
 
-    print("\n🎉 All Spider databases imported!")
+    print("\n🎉 All Spider databases re-imported with lowercase columns!")
