@@ -53,7 +53,6 @@ def format_schema_for_prompt(schema: dict, schema_name: str) -> str:
             nullable  = "NULL" if col["nullable"] else "NOT NULL"
             pk_marker = " [PK]" if col["name"] in table_info["primary_keys"] else ""
 
-            # Mark foreign keys with what they reference
             fk_marker = ""
             for fk in table_info["foreign_keys"]:
                 if col["name"] in fk["column"]:
@@ -61,13 +60,12 @@ def format_schema_for_prompt(schema: dict, schema_name: str) -> str:
                         f" [FK → {schema_name}.{fk['references_table']}"
                         f".{fk['references_col'][0]}]"
                     )
-
             lines.append(
                 f"  - {col['name']} ({col['type']}) "
                 f"{nullable}{pk_marker}{fk_marker}"
             )
 
-        # Explicit JOIN hints for the LLM
+        # JOIN hints
         if table_info["foreign_keys"]:
             lines.append("JOIN hints:")
             for fk in table_info["foreign_keys"]:
@@ -78,11 +76,24 @@ def format_schema_for_prompt(schema: dict, schema_name: str) -> str:
                     f".{fk['references_col'][0]}"
                 )
 
+        # Sample data — shows LLM real values
+        samples = get_sample_data(schema_name, table_name, limit=2)
+        if samples:
+            lines.append("Sample data:")
+            for row in samples:
+                # Truncate long values
+                clean = {
+                    k: str(v)[:30] if v is not None else "null"
+                    for k, v in row.items()
+                }
+                lines.append(f"  {clean}")
+
     lines.append("\n" + "=" * 50)
     lines.append("IMPORTANT RULES:")
     lines.append("- Always JOIN lookup tables instead of filtering by ID")
     lines.append("- Use schema prefix on all tables e.g. college_2.student")
     lines.append("- When user mentions a name/text, JOIN to find the matching ID")
+    lines.append("- Use exact column names as shown in schema above")
 
     return "\n".join(lines)
 
@@ -94,3 +105,19 @@ def get_schema_for_prompt(schema_name: str = "public") -> str:
 
 def list_available_schemas() -> list:
     return AVAILABLE_SCHEMAS
+
+def get_sample_data(schema_name: str, table_name: str, limit: int = 3) -> list:
+    """
+    Gets a few sample rows from a table.
+    Shows the LLM what actual data looks like.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(f'SELECT * FROM {schema_name}."{table_name}" LIMIT {limit}')
+            )
+            rows = result.fetchall()
+            cols = list(result.keys())
+            return [dict(zip(cols, row)) for row in rows]
+    except Exception:
+        return []

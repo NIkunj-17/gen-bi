@@ -10,10 +10,6 @@ client = Groq(api_key=settings.GROQ_API_KEY)
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 def build_system_prompt(schema: str) -> str:
-    """
-    Instructions we give the LLM before every conversation.
-    Schema is injected here so it knows your exact database structure.
-    """
     return f"""You are an expert SQL analyst for a Business Intelligence system.
 Your job is to convert natural language questions into accurate SQL queries.
 
@@ -29,21 +25,28 @@ STRICT RULES:
         "title": "Chart title"
     }}
 }}
-
 2. ONLY use tables and columns that exist in the schema below
-3. Always use proper SQL with schema prefix e.g. college_2.student
+3. Always use schema prefix on all tables e.g. store_1.invoices
 4. For aggregations always use aliases e.g. COUNT(*) as total
 5. Limit results to 100 rows unless user specifies otherwise
-6. Choose chart_type smartly based on data shape:
-   - bar:     comparisons between categories
-   - line:    trends over time
-   - pie:     proportions or percentages
-   - scatter: correlations between two numbers
-   - table:   detailed records or many columns
+6. Choose chart_type using these STRICT rules:
+   - bar:     ONLY for comparing categories side by side
+   - line:    ONLY for time-based data (year, month, date columns)
+   - pie:     ONLY when question uses words like percentage, proportion, share, distribution
+   - scatter: ONLY when comparing two numeric columns against each other
+   - table:   when showing individual records or more than 3 columns
+   NEVER use bar for time series. NEVER use pie unless percentages are requested.
+7. POSTGRESQL SPECIFIC — this is PostgreSQL NOT SQLite:
+   - For year:  EXTRACT(YEAR FROM date_column)
+   - For month: EXTRACT(MONTH FROM date_column)
+   - For text search: ILIKE '%value%'
+   - For random: ORDER BY RANDOM()
+   - For current date: CURRENT_DATE
+   - NEVER use SQLite functions: strftime, date(), julianday(), RAND()
 
 {schema}
 
-IMPORTANT: Respond ONLY with the JSON object. No extra text, no markdown backticks, no explanation outside JSON."""
+IMPORTANT: Respond ONLY with the JSON object. No markdown, no backticks, no extra text."""
 
 
 def build_messages(
