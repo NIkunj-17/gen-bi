@@ -1,42 +1,45 @@
 import { useState } from 'react'
+import { useAuth } from './hooks/useAuth'
+import AuthPage from './pages/AuthPage'
 import Sidebar from './components/Sidebar'
 import QueryBar from './components/QueryBar'
 import ExplanationBanner from './components/ExplanationBanner'
 import ResultsPanel from './components/ResultsPanel'
-
-export interface QueryResult {
-  success: boolean
-  question: string
-  sql: string
-  explanation: string
-  chart_type: string
-  chart_config: { x_axis: string; y_axis: string; title: string }
-  data: Record<string, any>[]
-  columns: string[]
-  row_count: number
-  error: string | null
-  recovered: boolean
-}
-
-export interface ConversationTurn {
-  question: string
-  response: QueryResult
-}
+import { QueryResult, ConversationTurn } from './types'
 
 export default function App() {
-  const [result, setResult]   = useState<QueryResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [schema, setSchema]   = useState('college_2')
+  const { user, token, loading, login, register, logout } = useAuth()
+
+  const [result,  setResult]  = useState<QueryResult | null>(null)
+  const [querying, setQuerying] = useState(false)
+  const [schema,  setSchema]  = useState('college_2')
   const [history, setHistory] = useState<ConversationTurn[]>([])
-  const [error, setError]     = useState<string | null>(null)
+  const [error,   setError]   = useState<string | null>(null)
+
+  // Show loading while checking localStorage
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"/>
+      </div>
+    )
+  }
+
+  // Show auth page if not logged in
+  if (!user || !token) {
+    return <AuthPage onLogin={login} onRegister={register} />
+  }
 
   const handleQuery = async (question: string) => {
-    setLoading(true)
+    setQuerying(true)
     setError(null)
     try {
       const res  = await fetch('http://127.0.0.1:8000/api/query', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`   // send JWT token
+        },
         body: JSON.stringify({
           question,
           schema_name: schema,
@@ -46,6 +49,12 @@ export default function App() {
           }))
         })
       })
+
+      if (res.status === 401) {
+        logout()
+        return
+      }
+
       const data: QueryResult = await res.json()
       if (data.success) {
         setResult(data)
@@ -56,7 +65,7 @@ export default function App() {
     } catch {
       setError('Could not connect to backend')
     } finally {
-      setLoading(false)
+      setQuerying(false)
     }
   }
 
@@ -67,12 +76,14 @@ export default function App() {
         onSchemaChange={setSchema}
         history={history}
         onHistoryClick={turn => setResult(turn.response)}
+        user={user}
+        onLogout={logout}
       />
       <div className="flex flex-col flex-1 min-w-0">
         <QueryBar
           onSubmit={handleQuery}
           onSchemaChange={setSchema}
-          loading={loading}
+          loading={querying}
           currentSchema={schema}
         />
         {error && (
@@ -90,15 +101,22 @@ export default function App() {
             <ResultsPanel result={result} />
           </>
         )}
-        {!result && !loading && (
+        {!result && !querying && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-2">
-              <p className="text-2xl font-semibold text-gray-800">Ask your data anything</p>
-              <p className="text-gray-400 text-sm">Select a database and type a question in plain English</p>
+              <p className="text-2xl font-semibold text-gray-800">
+                Welcome, {user.name}
+              </p>
+              <p className="text-gray-400 text-sm">
+                Select a database and ask anything in plain English
+              </p>
+              <p className="text-xs text-gray-300 mt-1">
+                Role: {user.role}
+              </p>
             </div>
           </div>
         )}
-        {loading && (
+        {querying && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-3">
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"/>

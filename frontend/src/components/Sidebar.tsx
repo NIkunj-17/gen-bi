@@ -1,19 +1,5 @@
-interface ConversationTurn {
-  question: string
-  response: {
-    question: string
-    sql: string
-    explanation: string
-    chart_type: string
-    chart_config: { x_axis: string; y_axis: string; title: string }
-    data: Record<string, any>[]
-    columns: string[]
-    row_count: number
-    error: string | null
-    recovered: boolean
-    success: boolean
-  }
-}
+import { ConversationTurn} from '../types'
+
 const SCHEMAS = [
   { name: 'college_2', tables: ['student','course','instructor','advisor'] },
   { name: 'car_1',     tables: ['car_makers','car_names','cars_data','countries'] },
@@ -25,9 +11,18 @@ interface Props {
   onSchemaChange: (s: string) => void
   history: ConversationTurn[]
   onHistoryClick: (turn: ConversationTurn) => void
+  user: { name: string; email: string; role: string }
+  onLogout: () => void
 }
 
-export default function Sidebar({ schema, onSchemaChange, history, onHistoryClick }: Props) {
+export default function Sidebar({
+  schema,
+  onSchemaChange,
+  history,
+  onHistoryClick,
+  user,
+  onLogout
+}: Props) {
   const current = SCHEMAS.find(s => s.name === schema)
 
   return (
@@ -61,7 +56,10 @@ export default function Sidebar({ schema, onSchemaChange, history, onHistoryClic
       <div className="px-3 pt-4">
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Tables</p>
         {current?.tables.map(t => (
-          <div key={t} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 rounded-lg hover:bg-gray-50 cursor-default">
+          <div
+            key={t}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 rounded-lg hover:bg-gray-50 cursor-default"
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"/>
             {t}
           </div>
@@ -85,6 +83,21 @@ export default function Sidebar({ schema, onSchemaChange, history, onHistoryClic
           ))}
         </div>
       )}
+
+      {/* User + logout */}
+      <div className="p-3 border-t border-gray-200 mt-auto">
+        <div className="px-2 mb-2">
+          <p className="text-xs font-medium text-gray-700 truncate">{user.name}</p>
+          <p className="text-xs text-gray-400 truncate">{user.role}</p>
+        </div>
+        <button
+          onClick={onLogout}
+          className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          Logout
+        </button>
+      </div>
+
     </div>
   )
 }
