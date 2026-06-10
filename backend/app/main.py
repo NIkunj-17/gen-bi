@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
-from app.core.database import test_connection
+from app.api.auth_routes import router as auth_router
+from app.core.database import test_connection, engine, Base
+from app.models.user import User
 
 app = FastAPI(
     title="Gen-BI API",
@@ -9,7 +11,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Allow frontend to talk to backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -18,10 +19,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register all routes under /api
-app.include_router(router, prefix="/api")
+# Register routes
+app.include_router(router,      prefix="/api")
+app.include_router(auth_router, prefix="/api/auth")
 
 @app.on_event("startup")
 async def startup():
+    # Auto create users table
+    Base.metadata.create_all(bind=engine)
     test_connection()
     print("Gen-BI API started")
