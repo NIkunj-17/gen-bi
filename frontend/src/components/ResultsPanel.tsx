@@ -1,4 +1,21 @@
-import { QueryResult } from '../types'
+interface QueryResult {
+  success: boolean
+  question: string
+  sql: string
+  explanation: string
+  chart_type: string
+  chart_config: { x_axis: string; y_axis: string; title: string }
+  data: Record<string, any>[]
+  columns: string[]
+  row_count: number
+  error: string | null
+  recovered: boolean
+}
+
+// interface ConversationTurn {
+//   question: string
+//   response: QueryResult
+// }  
 import ChartRenderer from './ChartRenderer'
 import ResultsTable from './ResultsTable'
 
@@ -10,7 +27,7 @@ export default function ResultsPanel({ result }: Props) {
     const rows   = result.data.map(row =>
       result.columns.map(col => `"${row[col] ?? ''}"`).join(',')
     )
-    const csv  = [header, ...rows].join('\n')
+    const csv  = [header, ...rows].join('\n') 
     const blob = new Blob([csv], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')

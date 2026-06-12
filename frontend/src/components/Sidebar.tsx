@@ -1,4 +1,21 @@
-import { ConversationTurn} from '../types'
+interface QueryResult {
+  success: boolean
+  question: string
+  sql: string
+  explanation: string
+  chart_type: string
+  chart_config: { x_axis: string; y_axis: string; title: string }
+  data: Record<string, any>[]
+  columns: string[]
+  row_count: number
+  error: string | null
+  recovered: boolean
+}
+
+interface ConversationTurn {
+  question: string
+  response: QueryResult
+}
 
 const SCHEMAS = [
   { name: 'college_2', tables: ['student','course','instructor','advisor'] },

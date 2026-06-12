@@ -5,7 +5,24 @@ import Sidebar from './components/Sidebar'
 import QueryBar from './components/QueryBar'
 import ExplanationBanner from './components/ExplanationBanner'
 import ResultsPanel from './components/ResultsPanel'
-import { QueryResult, ConversationTurn } from './types'
+interface QueryResult {
+  success: boolean
+  question: string
+  sql: string
+  explanation: string
+  chart_type: string
+  chart_config: { x_axis: string; y_axis: string; title: string }
+  data: Record<string, any>[]
+  columns: string[]
+  row_count: number
+  error: string | null
+  recovered: boolean
+}
+
+interface ConversationTurn {
+  question: string
+  response: QueryResult
+}
 
 export default function App() {
   const { user, token, loading, login, register, logout } = useAuth()

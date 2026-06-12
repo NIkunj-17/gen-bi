@@ -30,7 +30,10 @@ class UserResponse(BaseModel):
     email: str
     name:  str
     role:  str
-
+    
+class LoginJsonRequest(BaseModel):
+    email:    str
+    password: str
 # ── Routes ───────────────────────────────────────────
 
 @router.post("/register", response_model=TokenResponse)
@@ -107,7 +110,7 @@ def login(
 
 @router.post("/login/json", response_model=TokenResponse)
 def login_json(
-    request: RegisterRequest,
+    request: LoginJsonRequest,
     db: Session = Depends(get_db)
 ):
     """
