@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import API_BASE from '../config'
 
 interface User {
   id: number
@@ -31,7 +32,7 @@ export function useAuth() {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const res = await fetch('http://127.0.0.1:8000/api/auth/login/json', {
+    const res = await fetch(`${API_BASE}/api/auth/login/json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ email, password })
@@ -45,7 +46,7 @@ export function useAuth() {
   }
 
   const register = async (email: string, name: string, password: string) => {
-    const res = await fetch('http://127.0.0.1:8000/api/auth/register', {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ email, name, password, role: 'analyst' })

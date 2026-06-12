@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import API_BASE from '../config'
 
 interface Props {
   token: string
@@ -26,11 +27,8 @@ export default function UploadModal({ token, userId, onSuccess, onClose }: Props
     const formData = new FormData()
     formData.append('file', file)
 
-    // Debug — remove after testing
-    console.log('Uploading with token:', token?.substring(0, 20) + '...')
-
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/upload', {
+      const res = await fetch(`${API_BASE}/api/upload`, {
         method:  'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body:    formData
@@ -131,7 +129,9 @@ export default function UploadModal({ token, userId, onSuccess, onClose }: Props
             </div>
 
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Columns detected:</p>
+              <p className="text-xs font-medium text-gray-500 mb-2">
+                Columns detected:
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {preview.columns.map((col: string) => (
                   <span
@@ -145,7 +145,9 @@ export default function UploadModal({ token, userId, onSuccess, onClose }: Props
             </div>
 
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Preview (first 3 rows):</p>
+              <p className="text-xs font-medium text-gray-500 mb-2">
+                Preview (first 3 rows):
+              </p>
               <div className="overflow-x-auto border border-gray-200 rounded-lg">
                 <table className="text-xs w-full">
                   <thead className="bg-gray-50">

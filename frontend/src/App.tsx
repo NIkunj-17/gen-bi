@@ -6,6 +6,7 @@ import QueryBar from './components/QueryBar'
 import ExplanationBanner from './components/ExplanationBanner'
 import ResultsPanel from './components/ResultsPanel'
 import UploadModal from './components/UploadModal'
+import API_BASE from './config'
 
 interface QueryResult {
   success: boolean
@@ -29,13 +30,13 @@ interface ConversationTurn {
 export default function App() {
   const { user, token, loading, login, register, logout } = useAuth()
 
-  const [showUpload, setShowUpload] = useState(false)
+  const [showUpload,  setShowUpload]  = useState(false)
+  const [result,      setResult]      = useState<QueryResult | null>(null)
+  const [querying,    setQuerying]    = useState(false)
+  const [schema,      setSchema]      = useState('college_2')
+  const [history,     setHistory]     = useState<ConversationTurn[]>([])
+  const [error,       setError]       = useState<string | null>(null)
   const [userSchemas, setUserSchemas] = useState<string[]>([])
-  const [result,     setResult]     = useState<QueryResult | null>(null)
-  const [querying,   setQuerying]   = useState(false)
-  const [schema,     setSchema]     = useState('college_2')
-  const [history,    setHistory]    = useState<ConversationTurn[]>([])
-  const [error,      setError]      = useState<string | null>(null)
 
   if (loading) {
     return (
@@ -53,7 +54,7 @@ export default function App() {
     setQuerying(true)
     setError(null)
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/query', {
+      const res = await fetch(`${API_BASE}/api/query`, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
@@ -157,7 +158,9 @@ export default function App() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-3">
                 <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"/>
-                <p className="text-sm text-gray-500">Generating SQL and fetching data...</p>
+                <p className="text-sm text-gray-500">
+                  Generating SQL and fetching data...
+                </p>
               </div>
             </div>
           )}
@@ -165,22 +168,19 @@ export default function App() {
       </div>
 
       {showUpload && (
-  <UploadModal
-    token={token}
-    userId={user.id}
-    onSuccess={(schemaName: string) => {
-      setSchema(schemaName)
-      setShowUpload(false)
-
-      setUserSchemas((prev) =>
-        prev.includes(schemaName)
-          ? prev
-          : [...prev, schemaName]
-      )
-    }}
-    onClose={() => setShowUpload(false)}
-  />
-)}
+        <UploadModal
+          token={token}
+          userId={user.id}
+          onSuccess={(schemaName, tableName) => {
+            setSchema(schemaName)
+            setShowUpload(false)
+            setUserSchemas(prev =>
+              prev.includes(schemaName) ? prev : [...prev, schemaName]
+            )
+          }}
+          onClose={() => setShowUpload(false)}
+        />
+      )}
     </>
   )
 }
