@@ -127,7 +127,7 @@ Current question: {question}"""
         model=GROQ_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
-            *build_messages(question, conversation_history),
+            *build_messages(question, conversation_history, schema_name),
         ],
         temperature=0.1,
         max_tokens=500,
@@ -184,3 +184,78 @@ Return the corrected query in the same JSON format."""
         "chart_type":   result.get("chart_type", "table"),
         "chart_config": result.get("chart_config", {}),
     }
+def generate_insight(
+    question: str,
+    data: list,
+    columns: list,
+    chart_type: str
+) -> str:
+    """
+    Generates a 1-2 sentence executive insight from query results.
+    Like ThoughtSpot's automated insights feature.
+    """
+    if not data:
+        return "No data found for this query."
+
+    # Build a small data summary to send to LLM
+    sample = data[:5]
+    data_summary = f"Columns: {columns}\nSample rows: {sample}\nTotal rows: {len(data)}"
+
+    prompt = f"""You are a data analyst. Given this query result, write 1-2 sentences of executive insight.
+Be specific — mention actual numbers, top values, or notable patterns.
+Never say "the data shows" or "based on the query". Just state the insight directly.
+
+Question asked: {question}
+{data_summary}
+
+Write only the insight, nothing else."""
+
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=100,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return ""
+
+
+def generate_followup_questions(
+    question: str,
+    schema_name: str,
+    data: list
+) -> list:
+    """
+    Suggests 3 smart follow-up questions based on the current result.
+    Like ThoughtSpot's related searches feature.
+    """
+    if not data:
+        return []
+
+    prompt = f"""Given this data analysis question and its results, suggest exactly 3 short follow-up questions.
+Questions should dig deeper, filter, or explore related aspects.
+Return ONLY a JSON array of 3 strings. No explanation.
+
+Original question: {question}
+Database: {schema_name}
+Result had {len(data)} rows.
+
+Example format: ["question 1", "question 2", "question 3"]"""
+
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=150,
+        )
+        raw = response.choices[0].message.content.strip()
+        import re
+        match = re.search(r'\[.*\]', raw, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return []
+    except Exception:
+        return []

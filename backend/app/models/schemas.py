@@ -16,17 +16,19 @@ class FeedbackRequest(BaseModel):
 # ── Response models (what API returns) ────────────────
 
 class QueryResponse(BaseModel):
-    success: bool
-    question: str
-    sql: str
+    success:     bool
+    question:    str
+    sql:         str
     explanation: str
-    chart_type: str
+    chart_type:  str
     chart_config: dict
-    data: list
-    columns: list
-    row_count: int
-    error: Optional[str] = None
-    recovered: bool = False
+    data:        list
+    columns:     list
+    row_count:   int
+    error:       Optional[str] = None
+    recovered:   bool = False
+    insight:     str = ""
+    followups:   list = []
 
 class SchemaResponse(BaseModel):
     schemas: list

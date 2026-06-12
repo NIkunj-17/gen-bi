@@ -4,7 +4,7 @@ from app.models.schemas import (
     QueryRequest, QueryResponse,
     SchemaResponse, HealthResponse
 )
-from app.services.llm_service import generate_sql, generate_error_recovery
+from app.services.llm_service import generate_sql, generate_error_recovery,generate_insight, generate_followup_questions
 from app.services.sql_executor import execute_with_recovery
 from app.services.schema_service import get_full_schema, list_available_schemas
 from app.services.cache_service import get_cached, set_cached, get_cache_stats
@@ -64,20 +64,37 @@ async def run_query(
             schema_name=request.schema_name,
             llm_generate_recovery=generate_error_recovery
         )
+        
+        # Generate insight and followups for successful queries
+        insight  = ""
+        followups = []
+        if db_result["success"] and db_result["data"]:
+            insight  = generate_insight(
+                request.question,
+                db_result["data"],
+                db_result["columns"],
+                llm_result["chart_type"]
+            )
+            followups = generate_followup_questions(
+                request.question,
+                request.schema_name,
+                db_result["data"]
+            )
 
-        # Step 4: Build response
         response_data = {
-            "success":      db_result["success"],
-            "question":     request.question,
-            "sql":          llm_result["sql"],
-            "explanation":  llm_result["explanation"],
-            "chart_type":   llm_result["chart_type"],
-            "chart_config": llm_result["chart_config"],
-            "data":         db_result["data"],
-            "columns":      db_result["columns"],
-            "row_count":    db_result["row_count"],
-            "error":        db_result["error"],
-            "recovered":    db_result.get("recovered", False)
+            "success":     db_result["success"],
+            "question":    request.question,
+            "sql":         llm_result["sql"],
+            "explanation": llm_result["explanation"],
+            "chart_type":  llm_result["chart_type"],
+            "chart_config":llm_result["chart_config"],
+            "data":        db_result["data"],
+            "columns":     db_result["columns"],
+            "row_count":   db_result["row_count"],
+            "error":       db_result["error"],
+            "recovered":   db_result.get("recovered", False),
+            "insight":     insight,
+            "followups":   followups
         }
 
         # Step 5: Cache successful results only
