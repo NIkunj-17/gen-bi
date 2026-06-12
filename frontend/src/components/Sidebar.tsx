@@ -4,7 +4,11 @@ interface QueryResult {
   sql: string
   explanation: string
   chart_type: string
-  chart_config: { x_axis: string; y_axis: string; title: string }
+  chart_config: {
+    x_axis: string
+    y_axis: string
+    title: string
+  }
   data: Record<string, any>[]
   columns: string[]
   row_count: number
@@ -18,9 +22,18 @@ interface ConversationTurn {
 }
 
 const SCHEMAS = [
-  { name: 'college_2', tables: ['student','course','instructor','advisor'] },
-  { name: 'car_1',     tables: ['car_makers','car_names','cars_data','countries'] },
-  { name: 'store_1',   tables: ['invoices','customers','tracks','albums','artists'] },
+  {
+    name: 'college_2',
+    tables: ['student', 'course', 'instructor', 'advisor'],
+  },
+  {
+    name: 'car_1',
+    tables: ['car_makers', 'car_names', 'cars_data', 'countries'],
+  },
+  {
+    name: 'store_1',
+    tables: ['invoices', 'customers', 'tracks', 'albums', 'artists'],
+  },
 ]
 
 interface Props {
@@ -28,8 +41,14 @@ interface Props {
   onSchemaChange: (s: string) => void
   history: ConversationTurn[]
   onHistoryClick: (turn: ConversationTurn) => void
-  user: { name: string; email: string; role: string }
+  user: {
+    name: string
+    email: string
+    role: string
+  }
   onLogout: () => void
+  onUpload: () => void
+  userSchemas: string[]
 }
 
 export default function Sidebar({
@@ -38,23 +57,29 @@ export default function Sidebar({
   history,
   onHistoryClick,
   user,
-  onLogout
+  onLogout,
+  onUpload,
+  userSchemas,
 }: Props) {
-  const current = SCHEMAS.find(s => s.name === schema)
+  const current = SCHEMAS.find((s) => s.name === schema)
 
   return (
     <div className="w-56 bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
-
       {/* Logo */}
       <div className="px-4 py-4 border-b border-gray-200">
         <p className="font-semibold text-gray-900 text-sm">Gen-BI</p>
-        <p className="text-xs text-gray-400 mt-0.5">Generative Business Intelligence</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Generative Business Intelligence
+        </p>
       </div>
 
-      {/* Schema selector */}
+      {/* Demo Databases */}
       <div className="px-3 pt-3">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Database</p>
-        {SCHEMAS.map(s => (
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">
+          Demo Databases
+        </p>
+
+        {SCHEMAS.map((s) => (
           <button
             key={s.name}
             onClick={() => onSchemaChange(s.name)}
@@ -69,19 +94,47 @@ export default function Sidebar({
         ))}
       </div>
 
+      {/* Uploaded Schemas */}
+      {userSchemas.length > 0 && (
+        <div className="px-3 pt-4">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">
+            My Data
+          </p>
+
+          {userSchemas.map((s) => (
+            <button
+              key={s}
+              onClick={() => onSchemaChange(s)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                s === schema
+                  ? 'bg-green-50 text-green-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              📁 {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tables */}
-      <div className="px-3 pt-4">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Tables</p>
-        {current?.tables.map(t => (
-          <div
-            key={t}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 rounded-lg hover:bg-gray-50 cursor-default"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"/>
-            {t}
-          </div>
-        ))}
-      </div>
+      {current && (
+        <div className="px-3 pt-4">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">
+            Tables
+          </p>
+
+          {current.tables.map((t) => (
+            <div
+              key={t}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 rounded-lg hover:bg-gray-50 cursor-default"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+              {t}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* History */}
       {history.length > 0 && (
@@ -89,9 +142,10 @@ export default function Sidebar({
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">
             History ({history.length})
           </p>
-          {[...history].reverse().map((turn, i) => (
+
+          {[...history].reverse().map((turn, index) => (
             <button
-              key={i}
+              key={index}
               onClick={() => onHistoryClick(turn)}
               className="w-full text-left px-3 py-1.5 text-xs text-gray-500 rounded-lg hover:bg-gray-50 truncate block"
             >
@@ -101,12 +155,28 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* User + logout */}
+      {/* Upload Button */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={onUpload}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+        >
+          + Upload Data
+        </button>
+      </div>
+
+      {/* User Section */}
       <div className="p-3 border-t border-gray-200 mt-auto">
         <div className="px-2 mb-2">
-          <p className="text-xs font-medium text-gray-700 truncate">{user.name}</p>
-          <p className="text-xs text-gray-400 truncate">{user.role}</p>
+          <p className="text-xs font-medium text-gray-700 truncate">
+            {user.name}
+          </p>
+
+          <p className="text-xs text-gray-400 truncate">
+            {user.role}
+          </p>
         </div>
+
         <button
           onClick={onLogout}
           className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -114,7 +184,6 @@ export default function Sidebar({
           Logout
         </button>
       </div>
-
     </div>
   )
 }

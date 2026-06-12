@@ -51,12 +51,13 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no backticks, no extr
 
 def build_messages(
     question: str,
-    conversation_history: list
+    conversation_history: list,
+    schema_name: str = "public"
 ) -> list:
     """
     Builds full message history so LLM understands follow-up questions.
-    e.g. user asks 'now show only Physics dept' — LLM knows what 'now' means
-    because it sees the previous question and answer.
+    Schema name is injected into every user message so LLM never forgets
+    which database to query.
     """
     messages = []
 
@@ -64,17 +65,17 @@ def build_messages(
     for turn in conversation_history:
         messages.append({
             "role": "user",
-            "content": turn["question"]
+            "content": f"[SCHEMA: {schema_name}] {turn['question']}"
         })
         messages.append({
             "role": "assistant",
             "content": json.dumps(turn["response"])
         })
 
-    # Add current question
+    # Add current question with schema reminder
     messages.append({
         "role": "user",
-        "content": question
+        "content": f"[SCHEMA: {schema_name}] {question}\nOnly use tables from schema: {schema_name}"
     })
 
     return messages
@@ -104,38 +105,34 @@ def generate_sql(
     schema_name: str = "public",
     conversation_history: list = []
 ) -> dict:
-    """
-    Core function — converts natural language to SQL.
-    Called by the API route on every user query.
-
-    Flow:
-    1. Get DB schema
-    2. Build system prompt with schema
-    3. Build message history
-    4. Call Groq API
-    5. Parse and return result
-    """
-    # Step 1: Get schema for this database
-    schema = get_schema_for_prompt(schema_name)
-
-    # Step 2: Build system prompt
+    schema        = get_schema_for_prompt(schema_name)
     system_prompt = build_system_prompt(schema)
 
-    # Step 3: Build messages with history
-    messages = build_messages(question, conversation_history)
+    history_text = ""
+    for turn in conversation_history:
+        history_text += f"\nPrevious question: {turn['question']}"
+        history_text += f"\nPrevious SQL: {turn['response'].get('sql', '')}\n"
 
-    # Step 4: Call Groq API
+    # ✅ Explicitly remind LLM which schema to use
+    full_prompt = f"""{system_prompt}
+
+{history_text}
+ACTIVE DATABASE SCHEMA: {schema_name}
+ALL tables must use prefix: {schema_name}.tablename
+DO NOT use any other schema.
+
+Current question: {question}"""
+
     response = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
-            *messages
+            *build_messages(question, conversation_history),
         ],
-        temperature=0.1,      # low temperature = more deterministic SQL
-        max_tokens=1000,
+        temperature=0.1,
+        max_tokens=500,
     )
 
-    # Step 5: Parse response
     raw_text = response.choices[0].message.content
     result   = parse_llm_response(raw_text)
 

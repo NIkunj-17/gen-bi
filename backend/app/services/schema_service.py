@@ -103,8 +103,17 @@ def get_schema_for_prompt(schema_name: str = "public") -> str:
     return format_schema_for_prompt(schema, schema_name)
 
 
-def list_available_schemas() -> list:
-    return AVAILABLE_SCHEMAS
+def list_available_schemas(user_id: int = None) -> list:
+    schemas = ["public", "college_2", "car_1", "store_1"]
+    if user_id:
+        user_schema = f"user_{user_id}"
+        try:
+            inspector = inspect(engine)
+            if inspector.get_table_names(schema=user_schema):
+                schemas.append(user_schema)
+        except Exception:
+            pass
+    return schemas
 
 def get_sample_data(schema_name: str, table_name: str, limit: int = 3) -> list:
     """
@@ -121,3 +130,6 @@ def get_sample_data(schema_name: str, table_name: str, limit: int = 3) -> list:
             return [dict(zip(cols, row)) for row in rows]
     except Exception:
         return []
+    
+def get_user_schema_name(user_id: int) -> str:
+    return f"user_{user_id}"

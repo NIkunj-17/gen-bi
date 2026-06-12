@@ -1,5 +1,5 @@
 import traceback
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile
 from app.models.schemas import (
     QueryRequest, QueryResponse,
     SchemaResponse, HealthResponse
@@ -89,3 +89,47 @@ async def run_query(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+from fastapi import UploadFile, File 
+from app.services.upload_service import process_upload, get_user_tables
+from app.services.schema_service import AVAILABLE_SCHEMAS
+
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_analyst)
+):
+    """
+    Upload CSV or Excel file.
+    Creates a table in user's personal schema.
+    """
+    try:
+        contents = await file.read()
+        result   = process_upload(
+            file_bytes=contents,
+            filename=file.filename,
+            user_id=current_user.id
+        )
+        return {
+            "success": True,
+            "message": f"Uploaded {result['rows_inserted']} rows",
+            **result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/my-tables")
+async def get_my_tables(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns all tables uploaded by current user.
+    """
+    tables = get_user_tables(current_user.id)
+    schema = f"user_{current_user.id}"
+    return {
+        "schema_name": schema,
+        "tables":      tables
+    }

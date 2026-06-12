@@ -1,0 +1,16 @@
+product,category,sales,month,quantity
+Laptop,Electronics,45000,January,10
+Phone,Electronics,32000,February,25
+Chair,Furniture,12000,January,8
+Desk,Furniture,18000,March,5
+Notebook,Stationery,3000,February,50
+Pen Set,Stationery,1500,January,100
+Monitor,Electronics,22000,March,12
+Headphones,Electronics,8000,February,30
+Office Chair,Furniture,15000,March,7
+Keyboard,Electronics,5000,January,40
+Mouse,Electronics,2000,February,60
+Bookshelf,Furniture,9000,March,4
+Whiteboard,Stationery,6000,January,15
+Laptop Stand,Electronics,3500,February,20
+Desk Lamp,Furniture,2500,March,25
