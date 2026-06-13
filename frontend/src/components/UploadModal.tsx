@@ -8,7 +8,7 @@ interface Props {
   onClose: () => void
 }
 
-export default function UploadModal({ token, userId, onSuccess, onClose }: Props) {
+export default function UploadModal({ token, onSuccess, onClose }: Props) {
   const [dragging,  setDragging]  = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error,     setError]     = useState('')

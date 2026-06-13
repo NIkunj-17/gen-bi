@@ -93,7 +93,7 @@ export default function App() {
           schema={schema}
           onSchemaChange={s => { setSchema(s); setHistory([]) }}
           history={history}
-          onHistoryClick={turn => setHistory([turn])}
+          onHistoryClick={turn => setHistory([{ ...turn, schema: turn.schema || schema }])}
           user={user}
           onLogout={logout}
           onUpload={() => setShowUpload(true)}

@@ -99,13 +99,13 @@ def parse_llm_response(raw_text: str) -> dict:
             return json.loads(json_match.group())
         raise ValueError(f"Could not parse LLM response: {raw_text}")
 
-
 def generate_sql(
     question: str,
     schema_name: str = "public",
     conversation_history: list = []
 ) -> dict:
-    schema        = get_schema_for_prompt(schema_name)
+
+    schema = get_schema_for_prompt(schema_name)
     system_prompt = build_system_prompt(schema, schema_name)
 
     history_text = ""
@@ -113,33 +113,34 @@ def generate_sql(
         history_text += f"\nPrevious question: {turn['question']}"
         history_text += f"\nPrevious SQL: {turn['response'].get('sql', '')}\n"
 
-    # ✅ Explicitly remind LLM which schema to use
-    full_prompt = f"""{system_prompt}
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *build_messages(question, conversation_history, schema_name),
+    ]
 
-{history_text}
-ACTIVE DATABASE SCHEMA: {schema_name}
-ALL tables must use prefix: {schema_name}.tablename
-DO NOT use any other schema.
-
-Current question: {question}"""
+    # Force schema usage in latest user message
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] = (
+            f"IMPORTANT: Only use schema '{schema_name}'.\n"
+            f"All tables must be referenced as {schema_name}.table_name.\n"
+            f"Never use any other schema.\n\n"
+            + messages[-1]["content"]
+        )
 
     response = client.chat.completions.create(
         model=GROQ_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            *build_messages(question, conversation_history, schema_name),
-        ],
+        messages=messages,
         temperature=0.1,
         max_tokens=500,
     )
 
     raw_text = response.choices[0].message.content
-    result   = parse_llm_response(raw_text)
+    result = parse_llm_response(raw_text)
 
     return {
-        "sql":          result.get("sql", ""),
-        "explanation":  result.get("explanation", ""),
-        "chart_type":   result.get("chart_type", "table"),
+        "sql": result.get("sql", ""),
+        "explanation": result.get("explanation", ""),
+        "chart_type": result.get("chart_type", "table"),
         "chart_config": result.get("chart_config", {}),
     }
 

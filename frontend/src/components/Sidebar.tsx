@@ -3,6 +3,7 @@ import { useState } from 'react'
 interface ConversationTurn {
   question: string
   response: any
+  schema: string
 }
 
 const SCHEMAS = [
@@ -45,7 +46,7 @@ export default function Sidebar({
   user, onLogout, onUpload, userSchemas
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(schema)
-  const current = SCHEMAS.find(s => s.name === schema)
+  // const current = SCHEMAS.find(s => s.name === schema)
 
   return (
     <div className="w-60 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 select-none">

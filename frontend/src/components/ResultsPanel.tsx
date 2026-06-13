@@ -78,7 +78,6 @@ export default function ResultsPanel({ result }: Props) {
         data={result.data}
         columns={result.columns}
         rowCount={result.row_count}
-        onExportCSV={exportCSV}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent, useEffect } from 'react'
+import { useState, type KeyboardEvent, useEffect } from 'react'
 
 interface Props {
   onSubmit:       (q: string) => void

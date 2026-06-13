@@ -103,7 +103,7 @@ export default function ChartRenderer({ chartType, chartConfig, data }: Props) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(v: any, name: string) => [fmtNum(v, unit), fmtLabel(name)]}
+           formatter={(v: any, name: any) => [fmtNum(v, unit), fmtLabel(String(name))]}
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
           />
           <Legend
