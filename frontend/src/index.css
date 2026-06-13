@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+:root {
+  --bi-primary:     #1e293b;
+  --bi-accent:      #6366f1;
+  --bi-accent-light:#eef2ff;
+  --bi-success:     #059669;
+  --bi-border:      #e2e8f0;
+  --bi-muted:       #64748b;
+  --bi-surface:     #f8fafc;
+}

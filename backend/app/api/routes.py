@@ -78,7 +78,8 @@ async def run_query(
             followups = generate_followup_questions(
                 request.question,
                 request.schema_name,
-                db_result["data"]
+                db_result["data"],
+                db_result["columns"]
             )
 
         response_data = {

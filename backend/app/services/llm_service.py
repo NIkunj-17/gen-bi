@@ -9,9 +9,13 @@ client = Groq(api_key=settings.GROQ_API_KEY)
 # Best free model for SQL generation
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-def build_system_prompt(schema: str) -> str:
+def build_system_prompt(schema: str, schema_name: str = "public") -> str:
     return f"""You are an expert SQL analyst for a Business Intelligence system.
 Your job is to convert natural language questions into accurate SQL queries.
+
+CRITICAL: You MUST ONLY query the {schema_name} database.
+Every table in your SQL MUST use the prefix {schema_name}.tablename
+NEVER use any other schema prefix.
 
 STRICT RULES:
 1. Always respond with valid JSON in this exact format:
@@ -26,7 +30,7 @@ STRICT RULES:
     }}
 }}
 2. ONLY use tables and columns that exist in the schema below
-3. Always use schema prefix on all tables e.g. store_1.invoices
+3. Always use schema prefix: {schema_name}.tablename
 4. For aggregations always use aliases e.g. COUNT(*) as total
 5. Limit results to 100 rows unless user specifies otherwise
 6. Choose chart_type using these STRICT rules:
@@ -35,14 +39,10 @@ STRICT RULES:
    - pie:     ONLY when question uses words like percentage, proportion, share, distribution
    - scatter: ONLY when comparing two numeric columns against each other
    - table:   when showing individual records or more than 3 columns
-   NEVER use bar for time series. NEVER use pie unless percentages are requested.
-7. POSTGRESQL SPECIFIC — this is PostgreSQL NOT SQLite:
+7. POSTGRESQL SPECIFIC:
    - For year:  EXTRACT(YEAR FROM date_column)
    - For month: EXTRACT(MONTH FROM date_column)
-   - For text search: ILIKE '%value%'
-   - For random: ORDER BY RANDOM()
-   - For current date: CURRENT_DATE
-   - NEVER use SQLite functions: strftime, date(), julianday(), RAND()
+   - NEVER use SQLite functions: strftime, date(), RAND()
 
 {schema}
 
@@ -106,7 +106,7 @@ def generate_sql(
     conversation_history: list = []
 ) -> dict:
     schema        = get_schema_for_prompt(schema_name)
-    system_prompt = build_system_prompt(schema)
+    system_prompt = build_system_prompt(schema, schema_name)
 
     history_text = ""
     for turn in conversation_history:
@@ -144,46 +144,6 @@ Current question: {question}"""
     }
 
 
-def generate_error_recovery(
-    question: str,
-    failed_sql: str,
-    error_message: str,
-    schema_name: str
-) -> dict:
-    """
-    When SQL execution fails, we ask the LLM to fix it.
-    LLM sees the bad SQL + error message and tries again.
-    This is our automatic error recovery mechanism.
-    """
-    schema = get_schema_for_prompt(schema_name)
-
-    recovery_message = f"""This SQL query failed with an error. Please fix it.
-
-Original question: {question}
-Failed SQL: {failed_sql}
-Error message: {error_message}
-
-Return the corrected query in the same JSON format."""
-
-    response = client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[
-            {"role": "system", "content": build_system_prompt(schema)},
-            {"role": "user",   "content": recovery_message}
-        ],
-        temperature=0.1,
-        max_tokens=1000,
-    )
-
-    raw_text = response.choices[0].message.content
-    result   = parse_llm_response(raw_text)
-
-    return {
-        "sql":          result.get("sql", ""),
-        "explanation":  result.get("explanation", ""),
-        "chart_type":   result.get("chart_type", "table"),
-        "chart_config": result.get("chart_config", {}),
-    }
 def generate_insight(
     question: str,
     data: list,
@@ -191,31 +151,46 @@ def generate_insight(
     chart_type: str
 ) -> str:
     """
-    Generates a 1-2 sentence executive insight from query results.
-    Like ThoughtSpot's automated insights feature.
+    Generates a specific, data-driven insight with real numbers.
     """
     if not data:
-        return "No data found for this query."
+        return "No data found."
 
-    # Build a small data summary to send to LLM
-    sample = data[:5]
-    data_summary = f"Columns: {columns}\nSample rows: {sample}\nTotal rows: {len(data)}"
+    # Find numeric columns
+    numeric_cols = []
+    for col in columns:
+        try:
+            float(str(data[0].get(col, '')))
+            numeric_cols.append(col)
+        except (ValueError, TypeError):
+            pass
 
-    prompt = f"""You are a data analyst. Given this query result, write 1-2 sentences of executive insight.
-Be specific — mention actual numbers, top values, or notable patterns.
-Never say "the data shows" or "based on the query". Just state the insight directly.
+    # Build data summary with actual values
+    top3    = data[:3]
+    bottom3 = data[-3:] if len(data) > 3 else []
 
-Question asked: {question}
-{data_summary}
+    prompt = f"""You are a senior data analyst. Write ONE sentence of insight.
+Rules:
+- Use exact numbers from the data
+- Mention the top value and bottom value if relevant  
+- Be specific, not generic
+- Never say "the data shows" or "based on the results"
+- Under 25 words
 
-Write only the insight, nothing else."""
+Question: {question}
+Top 3 rows: {top3}
+Bottom 3 rows: {bottom3}
+Total rows: {len(data)}
+Numeric columns: {numeric_cols}
+
+Write only the insight sentence:"""
 
     try:
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=100,
+            temperature=0.1,
+            max_tokens=80,
         )
         return response.choices[0].message.content.strip()
     except Exception:
@@ -225,37 +200,114 @@ Write only the insight, nothing else."""
 def generate_followup_questions(
     question: str,
     schema_name: str,
-    data: list
+    data: list,
+    columns: list
 ) -> list:
-    """
-    Suggests 3 smart follow-up questions based on the current result.
-    Like ThoughtSpot's related searches feature.
-    """
-    if not data:
+    if not data or not columns:
         return []
 
-    prompt = f"""Given this data analysis question and its results, suggest exactly 3 short follow-up questions.
-Questions should dig deeper, filter, or explore related aspects.
-Return ONLY a JSON array of 3 strings. No explanation.
+    # Build actual data summary with real values
+    sample_values = {}
+    for col in columns:
+        vals = [str(row.get(col, '')) for row in data[:5] if row.get(col) is not None]
+        sample_values[col] = vals[:3]
 
-Original question: {question}
+    top_row = data[0] if data else {}
+
+    prompt = f"""You are a business analyst helping a user explore their data.
+
+The user asked: "{question}"
 Database: {schema_name}
-Result had {len(data)} rows.
+Result columns: {columns}
+Sample values per column: {sample_values}
+Top result row: {top_row}
+Total rows: {len(data)}
 
-Example format: ["question 1", "question 2", "question 3"]"""
+Write exactly 3 follow-up questions for this SAME database ({schema_name}).
+Each question must:
+- Be a complete sentence with at least 7 words
+- Reference specific column names or values from the results above
+- Be different from the original question
+- Be answerable from {schema_name} database
+
+BAD examples (too short/vague): "How many faculty?", "What are budgets?", "Show more data"
+GOOD examples: "Which department has the highest average instructor salary?", "Show all students enrolled in the Physics department", "How many courses does each department offer?"
+
+Return ONLY this exact JSON format with no extra text:
+["question one here", "question two here", "question three here"]"""
 
     try:
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.5,
-            max_tokens=150,
+            temperature=0.1,
+            max_tokens=200,
         )
-        raw = response.choices[0].message.content.strip()
-        import re
-        match = re.search(r'\[.*\]', raw, re.DOTALL)
+        raw   = response.choices[0].message.content.strip()
+        clean = re.sub(r'```(?:json)?', '', raw).strip().strip('`').strip()
+        match = re.search(r'\[.*?\]', clean, re.DOTALL)
         if match:
-            return json.loads(match.group())
+            questions = json.loads(match.group())
+            # Filter — must be at least 6 words
+            good = [q for q in questions if isinstance(q, str) and len(q.split()) >= 6]
+            return good[:3]
         return []
     except Exception:
         return []
+
+def generate_error_recovery(
+    question: str,
+    failed_sql: str,
+    error_message: str,
+    schema_name: str
+) -> dict:
+    """
+    Fixes SQL errors using the LLM.
+    Returns:
+    {
+        "sql": "corrected sql"
+    }
+    """
+
+    schema = get_schema_for_prompt(schema_name)
+
+    prompt = f"""
+You are a PostgreSQL expert.
+
+Database schema:
+{schema}
+
+User question:
+{question}
+
+Failed SQL:
+{failed_sql}
+
+Database error:
+{error_message}
+
+Generate a corrected PostgreSQL query.
+
+Rules:
+1. Return ONLY valid SQL
+2. Use only tables and columns from the schema
+3. Use schema prefix {schema_name}.table_name
+4. Do not explain anything
+"""
+
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.0,
+        max_tokens=300,
+    )
+
+    sql = response.choices[0].message.content.strip()
+
+    sql = re.sub(r"```sql", "", sql)
+    sql = re.sub(r"```", "", sql)
+    sql = sql.strip()
+
+    return {"sql": sql}
